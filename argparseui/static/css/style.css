@@ -119,7 +119,7 @@ input[type="checkbox"] {
   min-width: 0;
 }
 
-.history-column {
+.history-output-column {
   flex: 1 1 40%;
   min-width: 280px;
   background-color: #fff;
@@ -179,7 +179,7 @@ input[type="checkbox"] {
 
 .history-item-bar:hover {
   border-color: #0056b3;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
 }
 
 .history-item-bar.pinned {
@@ -188,6 +188,7 @@ input[type="checkbox"] {
 }
 
 .history-cmd-btn {
+  display: flex;
   background: none;
   border: none;
   color: #333;
@@ -239,7 +240,9 @@ input[type="checkbox"] {
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,11 +273,12 @@ input[type="checkbox"] {
   color: #dc3545;
 }
 
+/* css media at-rule, applies when the media matches specified conditions */
+/* stack items in flex container vertically if width< 768px */
 @media (max-width: 768px) {
   .main-layout {
     flex-direction: column;
   }
-  .form-column, .history-column {
-    width: 100%;
-  }
+  .form-column,
+  .history-output-column
 }
