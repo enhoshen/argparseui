@@ -94,6 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderHistory();
   };
 
+  // parse history string into forms and fill the form input boxes
   const parseAndPopulateForm = (cmdStr) => {
     const baseStr = baseCommand.join(" ");
     let argsStr = cmdStr;
