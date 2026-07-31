@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // State: command history stored in a Set for simplicity, key is full command string
   let historySet = new Set();
   let pinnedSet = new Set();
+  let commentsMap = {};
 
   const loadHistory = () => {
     try {
@@ -48,6 +49,10 @@ document.addEventListener("DOMContentLoaded", () => {
           pinnedSet = new Set(parsed);
         }
       }
+      const storedComments = localStorage.getItem("argparseui_comments");
+      if (storedComments) {
+        commentsMap = JSON.parse(storedComments) || {};
+      }
     } catch (e) {
       console.error("Failed to load history from localStorage:", e);
     }
@@ -63,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "argparseui_pinned",
         JSON.stringify(Array.from(pinnedSet)),
       );
+      localStorage.setItem("argparseui_comments", JSON.stringify(commentsMap));
     } catch (e) {
       console.error("Failed to save history to localStorage:", e);
     }
@@ -80,6 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const deleteCommandFromHistory = (cmdStr) => {
     historySet.delete(cmdStr);
     pinnedSet.delete(cmdStr);
+    delete commentsMap[cmdStr];
     saveHistory();
     renderHistory();
   };
@@ -155,6 +162,15 @@ document.addEventListener("DOMContentLoaded", () => {
     updateCommandDisplay();
   };
 
+  const stringToHash = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      hash = hash & hash;
+    }
+    return Math.abs(hash);
+  };
+
   const renderHistory = () => {
     const historyListEl = document.getElementById("history-list");
     if (!historyListEl) return;
@@ -182,6 +198,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const itemEl = document.createElement("div");
       itemEl.className = `history-item-bar ${isPinned ? "pinned" : ""}`;
 
+      // Map hash of cmdStr to a distinct background color
+      const hue = stringToHash(cmdStr) % 360;
+      itemEl.style.backgroundColor = isPinned
+        ? `hsl(${hue}, 65%, 90%)`
+        : `hsl(${hue}, 45%, 95%)`;
+      itemEl.style.borderColor = isPinned
+        ? `hsl(${hue}, 55%, 75%)`
+        : `hsl(${hue}, 35%, 85%)`;
+
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "history-item-content";
+
       const cmdBtn = document.createElement("button");
       cmdBtn.type = "button";
       cmdBtn.className = "history-cmd-btn";
@@ -192,6 +220,34 @@ document.addEventListener("DOMContentLoaded", () => {
       cmdBtn.addEventListener("click", () => {
         parseAndPopulateForm(cmdStr);
       });
+
+      const updateCommentSize = (input) => {
+        const textLen =
+          input.value.length ||
+          (input.placeholder ? input.placeholder.length : 6);
+        input.size = Math.max(textLen, 4);
+      };
+
+      const commentInput = document.createElement("input");
+      commentInput.type = "text";
+      commentInput.className = "history-comment-input";
+      commentInput.placeholder = "Desc";
+      commentInput.value = commentsMap[cmdStr] || "";
+      updateCommentSize(commentInput);
+
+      commentInput.addEventListener("click", (e) => e.stopPropagation());
+      commentInput.addEventListener("input", (e) => {
+        const val = e.target.value;
+        if (val.trim() === "") {
+          delete commentsMap[cmdStr];
+        } else {
+          commentsMap[cmdStr] = val;
+        }
+        updateCommentSize(e.target);
+        saveHistory();
+      });
+
+      contentDiv.appendChild(cmdBtn);
 
       const actionsDiv = document.createElement("div");
       actionsDiv.className = "history-actions";
@@ -231,7 +287,8 @@ document.addEventListener("DOMContentLoaded", () => {
       actionsDiv.appendChild(pinBtn);
       actionsDiv.appendChild(delBtn);
 
-      itemEl.appendChild(cmdBtn);
+      itemEl.appendChild(commentInput);
+      itemEl.appendChild(contentDiv);
       itemEl.appendChild(actionsDiv);
 
       historyListEl.appendChild(itemEl);
@@ -285,11 +342,18 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
   const deleteHistory = document.getElementById("delete-history");
-  deleteHistory.addEventListener("click", async () => {
-    historySet = new Set(pinnedSet);
-    saveHistory();
-    renderHistory();
-  });
+  if (deleteHistory) {
+    deleteHistory.addEventListener("click", async () => {
+      historySet = new Set(pinnedSet);
+      for (const key of Object.keys(commentsMap)) {
+        if (!pinnedSet.has(key)) {
+          delete commentsMap[key];
+        }
+      }
+      saveHistory();
+      renderHistory();
+    });
+  }
 
   // Initialize history
   loadHistory();

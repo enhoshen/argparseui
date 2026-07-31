@@ -25,6 +25,7 @@ imported/included components
                 {% for arg in script_arguments %}
                     <div class="input-group">
                         <label for="{{ arg.dest }}">{{ arg.label }}:</label>
+                        <!-- request are flask injected context by default-->
                         <div class="paste-and-input-row-container">
                             <div class="input-row">
                                 <button type="button" class="btn-paste" title="Paste from Clipboard"><i class="fas fa-paste"></i></button>
@@ -58,7 +59,7 @@ imported/included components
         <div class="history-output-column">
             <div class="history-header">
                 <h2><i class="fas fa-history"></i> Command History</h2>
-                <button type="button" class="fas fa-trash btn-history-action" id="delete-history"></button>
+                <button type="button" class="fas fa-trash btn-history-action" id="delete-history" title="Delete all unpinned commands"></button>
             </div>
             <div id="history-list" class="history-list">
                 <!-- History command bars will be dynamically rendered here -->
