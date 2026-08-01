@@ -115,12 +115,14 @@ input[type="checkbox"] {
 }
 
 .form-column {
-  flex: 1 1 60%;
-  min-width: 0;
+  min-width: 20%;
+  overflow: auto; 
+  resize: horizontal;
 }
 
 .history-output-column {
   flex: 1 1 40%;
+  resize: horizontal;
   min-width: 280px;
   background-color: #fff;
   padding: 20px;
@@ -299,9 +301,58 @@ input[type="checkbox"] {
   color: #b45309;
 }
 
-.btn-delete:hover {
-  background-color: #f8d7da;
-  color: #dc3545;
+.btn-toggle-output.active {
+  color: #0056b3;
+}
+
+.btn-toggle-output.active:hover {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.history-item-container {
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.history-output-drawer {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  padding: 8px 10px;
+  font-size: 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.output-drawer-header {
+  font-size: 10px;
+  color: #9cdcfe;
+  font-weight: bold;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.drawer-output {
+  margin: 0;
+  padding: 6px 8px;
+  background-color: #111;
+  color: #4ec9b0;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: monospace;
+  font-size: 11px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.drawer-output.error {
+  background-color: #3b1114;
+  color: #f87171;
 }
 
 /* css media at-rule, applies when the media matches specified conditions */
@@ -311,5 +362,9 @@ input[type="checkbox"] {
     flex-direction: column;
   }
   .form-column,
+  .history-column {
+    width: 100%;
+  }
+}
   .history-output-column
 }

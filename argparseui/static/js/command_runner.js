@@ -4,9 +4,35 @@ let commandDisplayCode = null;
 let scriptArguments = [];
 let baseCommand = [];
 
-let historySet = new Set();
+let historyMap = new Map();
 let pinnedSet = new Set();
 let commentsMap = {};
+
+class Command {
+  constructor(form, base) {
+    this.form = form;
+    this.base = base;
+  }
+  toString() {
+    let parts = [...this.base];
+    // this.form.forEach((value, key) => {
+    for (const key in this.form) {
+      let value = this.form[key];
+      parts.push(`--${key}`);
+      if (value === undefined) return;
+      parts.push(value);
+    }
+    // });
+    const cmdStr = parts.join(" ");
+    return cmdStr;
+  }
+  toJSON() {
+    return {
+      form: this.form,
+      base: this.base,
+    };
+  }
+}
 
 // Utility Functions
 const stringToHash = (str) => {
@@ -20,30 +46,27 @@ const stringToHash = (str) => {
 
 const updateCommentSize = (input) => {
   const textLen =
-    input.value.length ||
-    (input.placeholder ? input.placeholder.length : 6);
+    input.value.length || (input.placeholder ? input.placeholder.length : 6);
   input.size = Math.max(textLen, 4);
 };
 
-const updateCommandDisplay = () => {
+const formToCommand = () => {
   if (!form || !commandDisplayCode) return "";
   const formData = new FormData(form);
-  const currentCommandParts = [...baseCommand];
-
+  let formMap = new Map();
   formData.forEach((value, key) => {
     const argDef = scriptArguments.find((arg) => arg.dest === key);
     if (!argDef) return;
-
-    if (argDef.type === "checkbox") {
-      currentCommandParts.push(`--${key}`);
-    } else if (value !== "") {
-      currentCommandParts.push(`--${key}`);
-      currentCommandParts.push(value);
-    }
+    if (argDef.type === "checkbox") formMap.set(key, "");
+    else formMap.set(key, value);
   });
-  const cmdStr = currentCommandParts.join(" ");
-  commandDisplayCode.textContent = cmdStr;
-  return cmdStr;
+  return new Command(Object.fromEntries(formMap), baseCommand);
+};
+
+const updateCommandDisplay = () => {
+  let command = formToCommand();
+  commandDisplayCode.textContent = String(command);
+  return command;
 };
 
 // Storage & History State Management
@@ -51,10 +74,10 @@ const loadHistory = () => {
   try {
     const storedHistory = localStorage.getItem("argparseui_history");
     if (storedHistory) {
-      const parsed = JSON.parse(storedHistory);
-      if (Array.isArray(parsed)) {
-        historySet = new Set(parsed);
-      }
+      historyObj = new Map(JSON.parse(storedHistory));
+      historyObj.forEach((value, key) => {
+        historyMap.set(key, new Command(value.form, value.base));
+      });
     }
     const storedPinned = localStorage.getItem("argparseui_pinned");
     if (storedPinned) {
@@ -74,10 +97,7 @@ const loadHistory = () => {
 
 const saveHistory = () => {
   try {
-    localStorage.setItem(
-      "argparseui_history",
-      JSON.stringify(Array.from(historySet)),
-    );
+    localStorage.setItem("argparseui_history", JSON.stringify([...historyMap]));
     localStorage.setItem(
       "argparseui_pinned",
       JSON.stringify(Array.from(pinnedSet)),
@@ -88,16 +108,17 @@ const saveHistory = () => {
   }
 };
 
-const addCommandToHistory = (cmdStr) => {
+const addCommandToHistory = (command) => {
+  let cmdStr = String(command);
   if (!cmdStr || cmdStr.trim() === "") return;
-  historySet.delete(cmdStr);
-  historySet.add(cmdStr);
+  historyMap.delete(cmdStr);
+  historyMap.set(cmdStr, command);
   saveHistory();
   renderHistory();
 };
 
 const deleteCommandFromHistory = (cmdStr) => {
-  historySet.delete(cmdStr);
+  historyMap.delete(cmdStr);
   pinnedSet.delete(cmdStr);
   delete commentsMap[cmdStr];
   saveHistory();
@@ -115,71 +136,82 @@ const togglePinCommand = (cmdStr) => {
 };
 
 const clearUnpinnedHistory = () => {
-  historySet = new Set(pinnedSet);
-  for (const key of Object.keys(commentsMap)) {
-    if (!pinnedSet.has(key)) {
-      delete commentsMap[key];
-    }
-  }
+  let newComment = {};
+  let newHistory = new Map();
+  pinnedSet.forEach((key) => {
+    newHistory.set(key, historyMap.get(key));
+    newComment[key] = commentsMap[key];
+  });
+  historyMap = newHistory;
+  commentsMap = newComment;
   saveHistory();
   renderHistory();
 };
 
 // Form Parsing & Population
-const parseAndPopulateForm = (cmdStr) => {
-  const baseStr = baseCommand.join(" ");
-  let argsStr = cmdStr;
-  if (cmdStr.startsWith(baseStr)) {
-    argsStr = cmdStr.slice(baseStr.length).trim();
-  }
-
-  const tokens = [];
-  const tokenRegex = /"([^"]*)"|'([^']*)'|(\S+)/g;
-  let tMatch;
-  while ((tMatch = tokenRegex.exec(argsStr)) !== null) {
-    tokens.push(tMatch[1] ?? tMatch[2] ?? tMatch[3]);
-  }
-
-  const parsedArgs = {};
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token.startsWith("--")) {
-      const key = token.slice(2);
-      const argDef = scriptArguments.find((a) => a.dest === key);
-      if (argDef && argDef.type === "checkbox") {
-        parsedArgs[key] = true;
-      } else {
-        if (i + 1 < tokens.length && !tokens[i + 1].startsWith("--")) {
-          parsedArgs[key] = tokens[i + 1];
-          i++;
-        } else {
-          parsedArgs[key] = true;
-        }
-      }
-    }
-  }
+const parseAndPopulateForm = (command) => {
+  // const baseStr = baseCommand.join(" ");
+  // let argsStr = cmdStr;
+  // if (cmdStr.startsWith(baseStr)) {
+  //   argsStr = cmdStr.slice(baseStr.length).trim();
+  // }
+  //
+  // // TODO: argument containing spaces will be split into different
+  // //  token;
+  // // TODO: storing unstructured command string as whole is not a good idea
+  // //  from the start, should be storing the structured arguments object,
+  // //  maybe in json
+  // const tokens = [];
+  // const tokenRegex = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  // let tMatch;
+  // while ((tMatch = tokenRegex.exec(argsStr)) !== null) {
+  //   tokens.push(tMatch[1] ?? tMatch[2] ?? tMatch[3]);
+  // }
+  //
+  // const parsedArgs = {};
+  // for (let i = 0; i < tokens.length; i++) {
+  //   const token = tokens[i];
+  //   if (token.startsWith("--")) {
+  //     const key = token.slice(2);
+  //     const argDef = scriptArguments.find((a) => a.dest === key);
+  //     if (argDef && argDef.type === "checkbox") {
+  //       parsedArgs[key] = true;
+  //     } else {
+  //       if (i + 1 < tokens.length && !tokens[i + 1].startsWith("--")) {
+  //         parsedArgs[key] = tokens[i + 1];
+  //         i++;
+  //       } else {
+  //         parsedArgs[key] = true;
+  //       }
+  //     }
+  //   }
+  // }
 
   scriptArguments.forEach((arg) => {
     const el = document.getElementById(arg.dest);
     if (!el) return;
 
-    if (parsedArgs.hasOwnProperty(arg.dest)) {
-      const val = parsedArgs[arg.dest];
+    if (arg.dest in command.form) {
+      const val = command.form[arg.dest];
       if (arg.type === "checkbox") {
         el.checked = true;
-      } else if (el.tagName === "SELECT") {
-        el.value = val;
-      } else {
-        el.value = val === true ? "" : val;
+        return;
       }
+      if (el.tagName === "SELECT") {
+        el.value = val;
+        return;
+      }
+      el.value = val;
     } else {
       if (arg.type === "checkbox") {
         el.checked = false;
-      } else if (el.tagName === "SELECT") {
-        el.selectedIndex = 0;
-      } else {
-        el.value = "";
+        return;
       }
+      if (el.tagName === "SELECT") {
+        el.selectedIndex = 0;
+        return;
+      }
+      el.value = "";
     }
   });
 
@@ -187,7 +219,8 @@ const parseAndPopulateForm = (cmdStr) => {
 };
 
 // DOM Rendering for History Items
-const createHistoryItemElement = (cmdStr, isPinned) => {
+const createHistoryItemElement = (command, isPinned) => {
+  const cmdStr = String(command);
   const itemEl = document.createElement("div");
   itemEl.className = `history-item-bar ${isPinned ? "pinned" : ""}`;
 
@@ -208,7 +241,7 @@ const createHistoryItemElement = (cmdStr, isPinned) => {
   cmdBtn.title = "Click to fill form with this command";
   cmdBtn.innerHTML = `<i class="fas fa-terminal history-icon"></i><code class="history-cmd-text"></code>`;
   cmdBtn.querySelector(".history-cmd-text").textContent = cmdStr;
-  cmdBtn.addEventListener("click", () => parseAndPopulateForm(cmdStr));
+  cmdBtn.addEventListener("click", () => parseAndPopulateForm(command));
 
   const commentInput = document.createElement("input");
   commentInput.type = "text";
@@ -241,7 +274,7 @@ const createHistoryItemElement = (cmdStr, isPinned) => {
   runBtn.innerHTML = '<i class="fas fa-play"></i>';
   runBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    parseAndPopulateForm(cmdStr);
+    parseAndPopulateForm(command);
     if (form) form.submit();
   });
 
@@ -282,9 +315,9 @@ const renderHistory = () => {
 
   historyListEl.innerHTML = "";
 
-  const allCmds = Array.from(historySet).reverse();
-  const pinnedCmds = allCmds.filter((cmd) => pinnedSet.has(cmd));
-  const unpinnedCmds = allCmds.filter((cmd) => !pinnedSet.has(cmd));
+  const allCmds = Array.from(historyMap.values()).reverse();
+  const pinnedCmds = allCmds.filter((cmd) => pinnedSet.has(String(cmd)));
+  const unpinnedCmds = allCmds.filter((cmd) => !pinnedSet.has(String(cmd)));
   const sortedCmds = [...pinnedCmds, ...unpinnedCmds];
 
   if (sortedCmds.length === 0) {
@@ -296,8 +329,12 @@ const renderHistory = () => {
     return;
   }
 
-  sortedCmds.forEach((cmdStr) => {
-    const itemEl = createHistoryItemElement(cmdStr, pinnedSet.has(cmdStr));
+  sortedCmds.forEach((cmd_obj) => {
+    let command = new Command(cmd_obj.form, cmd_obj.base);
+    const itemEl = createHistoryItemElement(
+      command,
+      pinnedSet.has(String(command)),
+    );
     historyListEl.appendChild(itemEl);
   });
 };
@@ -336,7 +373,9 @@ const handlePasteClick = async (button) => {
 const initCommandRunner = () => {
   form = document.querySelector("form");
   const displayContainer = document.getElementById("dynamic-command-display");
-  commandDisplayCode = displayContainer ? displayContainer.querySelector("code") : null;
+  commandDisplayCode = displayContainer
+    ? displayContainer.querySelector("code")
+    : null;
 
   if (window.APP_CONFIG) {
     scriptArguments = window.APP_CONFIG.scriptArguments || [];
@@ -351,8 +390,8 @@ const initCommandRunner = () => {
     });
 
     form.addEventListener("submit", () => {
-      const cmdStr = updateCommandDisplay();
-      addCommandToHistory(cmdStr);
+      const command = updateCommandDisplay();
+      addCommandToHistory(command);
     });
   }
 
