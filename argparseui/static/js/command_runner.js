@@ -57,7 +57,11 @@ const formToCommand = () => {
   formData.forEach((value, key) => {
     const argDef = scriptArguments.find((arg) => arg.dest === key);
     if (!argDef) return;
-    if (argDef.type === "checkbox") formMap.set(key, "");
+    if (argDef.type === "checkbox") {
+      formMap.set(key, "");
+      return;
+    }
+    if (value == "") return;
     else formMap.set(key, value);
   });
   return new Command(Object.fromEntries(formMap), baseCommand);

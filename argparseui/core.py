@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, redirect, url_for
 import logging
 import subprocess
 from typing import List
@@ -11,10 +11,13 @@ logger = logging.getLogger(__name__)
 class App:
     def __init__(self, parser) -> None:
         self.app = Flask(__name__)
+        # TODO: make this configurable
         self.command_to_run = ["python3", "script.py"]
         self.ui_config = {
             "input_row_max_width": "500px",
         }
+        self.output = None
+        self.error = None
 
         # Define the arguments that script.py's argparse parser will accept.
         # This structure will be used to dynamically generate input fields.
@@ -43,8 +46,6 @@ class App:
         ]
 
     def run_command(self):
-        output = None
-        error = None
         final_command_args = list(
             self.command_to_run
         )  # Start with 'python script.py'
@@ -66,23 +67,26 @@ class App:
             )
 
             if result.stdout:
-                output = result.stdout.strip()
+                self.output = result.stdout.strip()
             if result.stderr:
-                error = result.stderr.strip()
+                self.error = result.stderr.strip()
 
-            if result.returncode != 0 and not error:
-                error = f"Command failed with exit code {result.returncode}"
+            if result.returncode != 0 and not self.error:
+                self.error = (
+                    f"Command failed with exit code {result.returncode}"
+                )
 
         except Exception as e:
-            error = f"An unexpected error occurred: {e}"
+            self.error = f"An unexpected error occurred: {e}"
 
+        # return redirect(url_for("index"))
         return render_template(
             "index.html",
             command=self.command_to_run,
             script_arguments=self.script_arguments,
             ui=self.ui_config,
-            output=output,
-            error=error,
+            output=self.output,
+            error=self.error,
         )
 
     def index(self):
@@ -91,8 +95,8 @@ class App:
             command=self.command_to_run,
             script_arguments=self.script_arguments,
             ui=self.ui_config,
-            output=None,
-            error=None,
+            output=self.output,
+            error=self.error,
         )
 
     def register(self):
