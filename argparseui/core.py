@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template, redirect, url_for
 import logging
 import subprocess
-from typing import List
+from typing import List, Optional, List
 
 import argparse
 
@@ -9,10 +9,18 @@ logger = logging.getLogger(__name__)
 
 
 class App:
-    def __init__(self, parser) -> None:
+    def __init__(
+        self,
+        parser,
+        command: Optional[List[str]] = None,
+    ) -> None:
         self.app = Flask(__name__)
         # TODO: make this configurable
-        self.command_to_run = ["python3", "script.py"]
+        if command is None:
+            self.command_to_run = ["python3", "script.py"]
+        else:
+            self.command_to_run = command
+
         self.ui_config = {
             "input_row_max_width": "500px",
         }
@@ -36,9 +44,9 @@ class App:
                 "label": a.help,
                 "type": self.arg_type_map.get(type(a)),
                 "options": a.choices,
-                "placeholder": ""
-                if a.default is None
-                else "e.g., " + f"{a.default}",
+                "placeholder": (
+                    "" if a.default is None else "e.g., " + f"{a.default}"
+                ),
                 "default": a.default,
             }
             for a in self.parser._actions
